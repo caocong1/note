@@ -24,7 +24,7 @@ const Home = () => {
             socket = io()
 
             socket.on('init', msg => {
-                console.log('init', msg)
+            //    console.log('init', msg)
                 const el = document.getElementById('content')
                 if (msg && el) {
                     el.innerHTML = msg
@@ -45,18 +45,18 @@ const Home = () => {
             // })
 
             socket.on('update-peers', res => {
-                console.log('update-peers', res)
+            //    console.log('update-peers', res)
                 peers = res
                 peers.forEach((peerId) => {
                     if (peerId === peer.id) return
                     const call = peer.call(peerId, videoStream);
-                    console.log(call)
-                    if (call) {
-                        call.on('stream', function (remoteStream) {
-                            console.log('update-peers call stream', remoteStream)
+                    //console.log(call)
+                    //if (call) {
+                        //call.on('stream', function (remoteStream) {
+                            //console.log('update-peers call stream', remoteStream)
                             // Show stream in some video/canvas element.
-                        })
-                    }
+                        //})
+                    //}
                 })
             })
 
@@ -71,29 +71,20 @@ const Home = () => {
                     socket.emit('add-peer', id)
                 })
                 peer.on('call', function (call) {
-                    console.log('peer call')
+                    //console.log('peer call')
                     navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(function (stream) {
                         call.answer(stream); // Answer the call with an A/V stream.
                         call.on('stream', function (remoteStream) {
-                            console.log('call stream', remoteStream)
+                            //console.log('call stream', remoteStream)
                             setVideo(remoteStream)
                             // Show stream in some video/canvas element.
                         });
                     });
                 })
                 peer.on('connection', function (conn) {
-                    console.log('peer connection', conn)
-                    conn.on('open', function () {
-                        console.log('open')
-                    })
-                    conn.on('close', function () {
-                        console.log('close')
-                    })
-                    conn.on('error', function (e) {
-                        console.log('error', e)
-                    })
+                    //console.log('peer connection', conn)
                     conn.on('data', data => {
-                        console.log('peer connection data', data)
+                        //console.log('peer connection data', data)
                         const {type} = data as any
                         if (type === 'request-file') {
                             const {filename, peerId} = data as any
@@ -102,7 +93,7 @@ const Home = () => {
                                 const sendFileConn = peer.connect(peerId);
                                 sendFileConn.on('open', function () {
                                     file.arrayBuffer().then((buffer) => {
-                                        console.log(buffer)
+                                        //console.log(buffer)
                                         let blob = new Blob([buffer], {type: file.type });
                                     //     sendFileConn.send(buffer)
                                         sendFileConn.send({type: 'send-file', filename: file.name, buffer, filetype: file.type});
@@ -133,14 +124,14 @@ const Home = () => {
             })
         })
         document.addEventListener('drop', (event) => {
-            console.log('event drop', event)
+            //console.log('event drop', event)
             event.preventDefault()
             if (event.dataTransfer?.files?.length) {
                 for (let i = 0; i < event.dataTransfer.files.length; i++) {
                     // console.log(event.dataTransfer.files[i])
                     const file = event.dataTransfer.files[i]
                     files[file.name] = file
-                    console.log(file)
+                    //console.log(file)
                     const el = document.getElementById('content')
                     if (!el) return
                     const a = document.createElement('a')
@@ -188,7 +179,7 @@ const Home = () => {
         })
 
         document.addEventListener('click', (event) => {
-            console.log(event.target)
+            //console.log(event.target)
             const el = event.target as HTMLElement
             if (el && el.tagName === 'A' && el.className === 'file') {
                 const remotePeerId = el.dataset.peerId
@@ -227,7 +218,7 @@ const Home = () => {
                     audio: false
                 })
                     .then(function (stream) {
-                        console.log(stream, peers)
+                        //console.log(stream, peers)
                         setVideo(stream)
                         videoStream = stream
                         peers.forEach((peerId) => {
