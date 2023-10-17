@@ -3,25 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "d": "next dev -p 23333",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 23333",
     "lint": "next lint"
   },
   "dependencies": {
+    "next": "13.5.4",
+    "peer": "^1.0.1",
+    "peerjs": "^1.5.1",
     "react": "^18",
     "react-dom": "^18",
-    "next": "13.5.4"
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "autoprefixer": "^10",
-    "postcss": "^8",
-    "tailwindcss": "^3",
+    "@types/uuid": "^9.0.5",
     "eslint": "^8",
-    "eslint-config-next": "13.5.4"
+    "eslint-config-next": "13.5.4",
+    "typescript": "^5"
   }
 }
