@@ -269,6 +269,12 @@ const Home = () => {
     const closeModal = useCallback(() => {
         // const videoTrack = videoStream?.getVideoTracks()[0];
         // videoTrack?.stop()
+        if(streamingId === peer.id) {
+            console.log('用户已停止屏幕共享');
+            socket.emit('stop-stream', peer.id)
+        } else {
+            console.log('其他用户已停止屏幕共享');
+        }
         setOpenModal(false)
         stopStream()
         setMinModal(false)
