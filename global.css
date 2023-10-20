@@ -1,3 +1,12 @@
 body {
     margin: 0;
 }
+
+.ant-modal-wrap {
+    pointer-events: none;
+}
+
+/*#video {*/
+/*    resize: horizontal;*/
+/*    overflow: scroll;*/
+/*}*/

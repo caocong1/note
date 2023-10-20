@@ -6,14 +6,18 @@
     "d": "next dev -p 23332",
     "build": "next build",
     "start": "next start -p 23332",
-    "lint": "next lint"
+    "lint": "next lint",
+    "peer-dev": "SSL=false node peer.js",
+    "peer": "node peer.js"
   },
   "dependencies": {
+    "antd": "^5.10.1",
     "next": "13.5.4",
     "peer": "^1.0.1",
     "peerjs": "^1.5.1",
     "react": "^18",
     "react-dom": "^18",
+    "react-draggable": "^4.4.6",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
     "uuid": "^9.0.1"
