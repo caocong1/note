@@ -301,16 +301,17 @@ const Home = () => {
             />
             <Button id="share-screen-btn" style={{position: 'absolute', bottom: 40, right: 20,}} onClick={() => {
                 navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        width: {
-                            ideal: 1920,
-                            max: 1920,
-                        },
-                        height: {
-                            ideal: 1080,
-                            max: 1080,
-                        }
-                    },
+                    video: true,
+                    // video: {
+                    //     width: {
+                    //         ideal: 1920,
+                    //         max: 1920,
+                    //     },
+                    //     height: {
+                    //         ideal: 1080,
+                    //         max: 1080,
+                    //     }
+                    // },
                     audio: false
                 })
                     .then(function (stream) {
