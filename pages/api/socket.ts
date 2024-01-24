@@ -26,13 +26,13 @@ const SocketHandler = (_req: any, res: any) => {
                 console.log('join', id)
                 uuid = id
                 peers.push(uuid)
-                socket.emit('init', input)
+                socket.emit('init', {input, peers})
                 io.emit('update-peers', peers)
             })
 
-            socket.on('input-change', msg => {
+            socket.on('input-change', ({peerId, msg}) => {
                 input = msg
-                // socket.broadcast.except(peerId).emit('update-input', msg)
+                socket.broadcast.emit('update-input', {peerId, msg})
             })
 
             // socket.on('add-peer', id => {

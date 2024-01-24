@@ -2,18 +2,19 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import io, {Socket} from 'socket.io-client'
 import Peer from "peerjs";
 import {v4 as uuidv4} from 'uuid'
-import {Button, Modal, Space} from "antd";
+import {Button, Modal, notification, Space} from "antd";
 import Draggable from 'react-draggable';
 
 let socket: Socket;
 let uuid: string
 let peer: Peer
-let peers: string[] = []
+// let peers: string[] = []
 let videoStream: MediaStream | null = null
 const files: Record<string, File> = {}
 let streamingId: string
+const chunkSize = 1024 * 1024 * 2
 
-function PeerCallStream() {
+function PeerCallStream(peers: string[] = []) {
     console.log('PeerCallStream', peers, peer.id, uuid)
     peers.forEach((peerId) => {
         if (peerId === peer.id) return
@@ -40,6 +41,9 @@ function stopStream() {
     }
 }
 
+let globalPeers: string[] = []
+const receiveFiles: { [filename: string]: Uint8Array } = {}
+
 const Home = () => {
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
@@ -51,6 +55,7 @@ const Home = () => {
     const dragRef = useRef<HTMLDivElement>(null);
     // const [bounds, setBounds] = useState({left: 0, top: 0, bottom: 0, right: 0});
     const [minModal, setMinModal] = useState(false)
+    const [peers, setPeers] = useState<string[]>([])
 
     const showVideo = useCallback((stream: MediaStream) => {
         console.log('showVideo')
@@ -72,12 +77,14 @@ const Home = () => {
         fetch('/api/socket').then(() => {
             socket = io()
 
-            socket.on('init', input => {
+            socket.on('init', (res) => {
                 console.log('init')
                 const el = document.getElementById('content')
-                if (input && el) {
-                    el.innerHTML = input
+                if (res.input && el) {
+                    el.innerHTML = res.input
                 }
+                setPeers(res.peers)
+                globalPeers = res.peers
             })
 
             socket.on('connect', () => {
@@ -134,32 +141,94 @@ const Home = () => {
                                     const file = files[filename]
                                     const sendFileConn = peer.connect(peerId);
                                     sendFileConn.on('open', function () {
+                                        sendFileConn.send({
+                                            type: 'send-file-start',
+                                            filename: file.name,
+                                            filetype: file.type
+                                        });
                                         file.arrayBuffer().then((buffer) => {
                                             //console.log(buffer)
                                             // let blob = new Blob([buffer], {type: file.type});
                                             //     sendFileConn.send(buffer)
-                                            sendFileConn.send({
-                                                type: 'send-file',
-                                                filename: file.name,
-                                                buffer,
-                                                filetype: file.type
-                                            });
+                                            const size = buffer.byteLength
+                                            let start = 0
+                                            let end = size > chunkSize ? chunkSize : size
+                                            let sendBuffer = buffer.slice(start, end)
+                                            while (sendBuffer.byteLength > 0) {
+                                                sendFileConn.send({
+                                                    type: 'send-file',
+                                                    filename: file.name,
+                                                    buffer: sendBuffer,
+                                                    start,
+                                                    end,
+                                                    size,
+                                                });
+                                                start = end
+                                                end = size > start + chunkSize ? start + chunkSize : size
+                                                sendBuffer = buffer.slice(start, end)
+                                            }
+                                            // sendFileConn.send({
+                                            //     type: 'send-file',
+                                            //     filename: file.name,
+                                            //     buffer,
+                                            //     filetype: file.type
+                                            // });
                                             // sendFileConn.close()
                                         })
                                     })
+                                } else {
+                                    let element = document.querySelector(`[download="${filename}"]`);
+                                    if (element) {
+                                        element.remove();
+                                    }
+                                    const content = document.getElementById('content')
+                                    if (content) {
+                                        socket.emit('input-change', {peerId: peer.id, msg: content.innerHTML})
+                                    }
+                                    const sendFileConn = peer.connect(peerId);
+                                    sendFileConn.on('open', function () {
+                                        sendFileConn.send({type: 'send-file-error'});
+                                    })
+                                    notification.error({message: '文件不存在，请重新发送'})
                                 }
-                            } else if (type === 'html') {
-                                const {content} = data as any
-                                const el = document.getElementById('content')
-                                if (el) el.innerHTML = content as string
+                                // } else if (type === 'html') {
+                                //     const {content} = data as any
+                                //     const el = document.getElementById('content')
+                                //     if (el) el.innerHTML = content as string
                             } else if (type === 'send-file') {
-                                const {filename, filetype, buffer} = data as any
+                                const {filename, filetype, buffer, start, end, size} = data as any
+                                console.log('send-file', filename, start, end, size, buffer.byteLength)
+                                if (start === 0) {
+                                    receiveFiles[filename] = new Uint8Array(new Uint8Array(new ArrayBuffer(size)))
+                                    console.log('receiveFiles[filename] length', receiveFiles[filename].byteLength)
+                                }
+                                receiveFiles[filename].set(new Uint8Array(buffer), start);
+                                if (end === size) {
+                                    const blob = new Blob([receiveFiles[filename]], {type: filetype});
+                                    const a = document.createElement('a')
+                                    a.href = window.URL.createObjectURL(blob);
+                                    a.download = filename
+                                    a.click()
+                                    let element = document.querySelector(`[download="${filename}"]`);
+                                    if (element) {
+                                        element.innerHTML = filename + `(${Math.floor(end / size * 100)}%)`
+                                    }
+                                    delete receiveFiles[filename]
+                                } else {
+                                    let element = document.querySelector(`[download="${filename}"]`);
+                                    if (element) {
+                                        element.innerHTML = filename + `(${Math.floor(end / size * 100)}%)`
+                                    }
+                                }
                                 // console.log('send-file', filename, buffer)
-                                const blob = new Blob([buffer], {type: filetype});
-                                const a = document.createElement('a')
-                                a.href = window.URL.createObjectURL(blob);
-                                a.download = filename
-                                a.click()
+                            } else if (type === 'send-file-error') {
+                                notification.error({message: '文件不存在，请重新发送'})
+                            } else if (type === 'send-file-start') {
+                                const {filename} = data as any
+                                let element = document.querySelector(`[download="${filename}"]`);
+                                if (element) {
+                                    element.innerHTML = filename + '(开始下载)'
+                                }
                             }
                             // conn.close()
                         })
@@ -171,19 +240,22 @@ const Home = () => {
 
                     socket.on('update-peers', res => {
                         //    console.log('update-peers', res)
-                        peers = res
-                        PeerCallStream()
+                        // peers = res
+                        setPeers(res)
+                        globalPeers = res
+                        PeerCallStream(res)
                     })
                 })
             })
 
-            // socket.on('update-input', msg => {
-            //     console.log('update', msg)
-            //     // setInput(msg)
-            //     //   (ref.current as any)?.innerHTML = msg
-            //     const el = document.getElementById('content')
-            //     if (el) el.innerHTML = msg
-            // })
+            socket.on('update-input', ({peerId, msg}) => {
+                console.log('update-input', msg, peerId)
+                // setInput(msg)
+                //   (ref.current as any)?.innerHTML = msg
+                if (peerId === peer.id) return
+                const el = document.getElementById('content')
+                if (el) el.innerHTML = msg
+            })
 
 
             socket.on('stop-streaming', () => {
@@ -198,7 +270,7 @@ const Home = () => {
                 //    console.log('update-peers', res)
                 console.log('start-streaming', id)
                 console.log('streamingId, peer.id', streamingId, peer.id)
-                if(streamingId === peer.id && id === peer.id) {
+                if (streamingId === peer.id && id === peer.id) {
                     console.log('start-streaming stream', videoStream?.getAudioTracks())
                     videoStream?.getAudioTracks()[0].stop()
                 }
@@ -233,15 +305,15 @@ const Home = () => {
                     div.appendChild(a)
                     el.appendChild(div)
 
-                    socket.emit('input-change', el.innerHTML)
-                    peers.forEach((peerId) => {
-                        if (peerId === peer.id) return
-                        const conn = peer.connect(peerId);
-                        conn.on('open', function () {
-                            conn.send({type: 'html', content: el.innerHTML});
-                            // conn.close()
-                        })
-                    })
+                    socket.emit('input-change', {peerId: peer.id, msg: el.innerHTML})
+                    // peers.forEach((peerId) => {
+                    //     if (peerId === peer.id) return
+                    //     const conn = peer.connect(peerId);
+                    //     conn.on('open', function () {
+                    //         conn.send({type: 'html', content: el.innerHTML});
+                    //         // conn.close()
+                    //     })
+                    // })
                 }
             }
         })
@@ -255,12 +327,22 @@ const Home = () => {
             const el = event.target as HTMLElement
             if (el && el.tagName === 'A' && el.className === 'file') {
                 const remotePeerId = el.dataset.peerId
-                if (remotePeerId && remotePeerId !== peer.id) {
+                if (remotePeerId === peer.id) {
+                    return
+                }
+                if (remotePeerId && remotePeerId !== peer.id && globalPeers.includes(remotePeerId)) {
                     const conn = peer.connect(remotePeerId);
-                    conn.on('open', function () {
-                        conn.send({type: 'request-file', filename: el.innerText, peerId: peer.id});
-                        // conn.close()
-                    })
+                    console.log(conn, globalPeers, remotePeerId)
+                    if (conn) {
+                        conn.on('open', function () {
+                            conn.send({type: 'request-file', filename: el.innerText, peerId: peer.id});
+                            // conn.close()
+                        })
+                    } else {
+                        notification.error({message: '连接失败请重试'})
+                    }
+                } else {
+                    notification.error({message: '找不到发送文件的用户id，请重新发送'})
                 }
             }
         })
@@ -269,7 +351,7 @@ const Home = () => {
     const closeModal = useCallback(() => {
         // const videoTrack = videoStream?.getVideoTracks()[0];
         // videoTrack?.stop()
-        if(streamingId === peer.id) {
+        if (streamingId === peer.id) {
             console.log('用户已停止屏幕共享');
             socket.emit('stop-stream', peer.id)
         } else {
@@ -288,17 +370,24 @@ const Home = () => {
                 contentEditable
                 style={{width: '100vw', height: '100vh', boxSizing: 'border-box', padding: 8}}
                 onInput={(e: any) => {
-                    socket.emit('input-change', e.target.innerHTML)
-                    peers.forEach((peerId) => {
-                        if (peerId === peer.id) return
-                        const conn = peer.connect(peerId);
-                        conn.on('open', function () {
-                            conn.send({type: 'html', content: e.target.innerHTML});
-                            // conn.close()
-                        })
-                    })
+                    socket.emit('input-change', {peerId: peer.id, msg: e.target.innerHTML})
+                    // peers.forEach((peerId) => {
+                    //     if (peerId === peer.id) return
+                    //     const conn = peer.connect(peerId);
+                    //     conn.on('open', function () {
+                    //         conn.send({type: 'html', content: e.target.innerHTML});
+                    //         // conn.close()
+                    //     })
+                    // })
                 }}
             />
+            <div style={{
+                position: 'absolute',
+                bottom: 10,
+                right: 20,
+                fontSize: 12,
+                color: '#00000070'
+            }}>在线人数：{peers.length}</div>
             <Button id="share-screen-btn" style={{position: 'absolute', bottom: 40, right: 20,}} onClick={() => {
                 navigator.mediaDevices.getDisplayMedia({
                     video: true,
@@ -318,13 +407,13 @@ const Home = () => {
                         //console.log(stream, peers)
                         showVideo(stream)
                         videoStream = stream
-                        PeerCallStream()
+                        PeerCallStream(peers)
                         streamingId = peer.id
                         socket.emit('start-stream', peer.id)
                         const videoTrack = stream.getVideoTracks()[0];
 
                         videoTrack.onended = () => {
-                            if(streamingId === peer.id) {
+                            if (streamingId === peer.id) {
                                 console.log('用户已停止屏幕共享');
                                 socket.emit('stop-stream', peer.id)
                             } else {
@@ -368,14 +457,14 @@ const Home = () => {
                         {!minModal && <Button size="small" onClick={() => {
                             setMinModal(true)
                             const el = document.getElementById("video-container")
-                            if(el) {
+                            if (el) {
                                 el.style.display = 'none'
                             }
                         }}>最小化</Button>}
                         {minModal && <Button size="small" onClick={() => {
                             setMinModal(false)
                             const el = document.getElementById("video-container")
-                            if(el) {
+                            if (el) {
                                 el.style.display = 'block'
                             }
                         }}>恢复</Button>}
