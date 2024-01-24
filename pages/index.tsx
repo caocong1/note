@@ -252,7 +252,7 @@ const Home = () => {
                 console.log('update-input', msg, peerId)
                 // setInput(msg)
                 //   (ref.current as any)?.innerHTML = msg
-                if (peerId === peer.id) return
+                if (peerId === peer.id || !peerId) return
                 const el = document.getElementById('content')
                 if (el) el.innerHTML = msg
             })
